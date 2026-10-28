@@ -54,7 +54,7 @@ export async function handleFootballRequest(
       return { status: 429, body: { message: 'Data provider rate limit reached. Please retry in a minute.' }, ttl: 0 }
     }
 
-    const response = await fetch(url, { headers: { 'X-Auth-Token': apiKey } })
+    const response = await fetch(url, { headers: { 'X-Auth-Token': apiKey }, signal: AbortSignal.timeout(10_000) })
     const body = await response.json().catch(() => ({ message: 'Invalid response from data provider.' }))
 
     if (!response.ok) {

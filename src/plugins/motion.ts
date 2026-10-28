@@ -5,7 +5,7 @@ import { prefersReducedMotion } from '@/composables/useReducedMotion'
 const ease = [0.16, 1, 0.3, 1]
 
 /**
- * Global presets usable as `v-motion-fade-up` / `v-motion-fade`.
+ * Global presets usable as `v-motion-fade-up` / `v-motion-hero-in`.
  * With reduced motion enabled every preset collapses to an instant, transform-free state.
  */
 export function installMotion(app: App) {
@@ -19,12 +19,6 @@ export function installMotion(app: App) {
         : {
             initial: { opacity: 0, y: 28 },
             visibleOnce: { opacity: 1, y: 0, transition: { duration: 700, ease } },
-          },
-      fade: reduced
-        ? still
-        : {
-            initial: { opacity: 0 },
-            visibleOnce: { opacity: 1, transition: { duration: 800, ease } },
           },
       'hero-in': reduced
         ? { initial: { opacity: 1 }, enter: { opacity: 1 } }

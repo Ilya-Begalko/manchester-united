@@ -53,7 +53,7 @@ function toDto(item: RssItem): NewsItemDto | null {
 
 export function handleNewsRequest(): Promise<ProxyResult> {
   return cached(FEED_URL, TTL, async () => {
-    const response = await fetch(FEED_URL)
+    const response = await fetch(FEED_URL, { signal: AbortSignal.timeout(10_000) })
     if (!response.ok) {
       return { status: 502, body: { message: 'News feed is unavailable.' }, ttl: 0 }
     }
