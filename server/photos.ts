@@ -1,4 +1,4 @@
-import { cached, type ProxyResult } from './cache.js'
+import type { ProxyResult } from './cache.js'
 import { handleFootballRequest } from './football.js'
 
 const TEAM_ID = 66
@@ -7,9 +7,11 @@ const SPORTSDB_TEAM_ID = 133612
 /** Public free test key published in the TheSportsDB documentation. */
 const SPORTSDB_BASE = 'https://www.thesportsdb.com/api/v1/json/123'
 const TTL = 24 * 60 * 60
-const PARTIAL_TTL = 60 * 60
-/** Free key allows 30 requests per minute; stay safely below it. */
-const SEARCH_GAP_MS = 2_200
+const PENDING_TTL = 30
+/** The documented limit is 30 req/min, but Cloudflare starts returning 429 earlier; keep well below it. */
+const SEARCH_GAP_MS = 3_000
+/** Leaves headroom under the serverless function's 60 s limit. */
+const TIME_BUDGET_MS = 40_000
 
 export interface PlayerPhotoDto {
   url: string
@@ -81,41 +83,77 @@ async function sportsDbGet(path: string): Promise<SportsDbPlayer[]> {
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
-export function handlePhotosRequest(apiKey: string | undefined): Promise<ProxyResult> {
-  return cached(`photos:${TEAM_ID}`, TTL, async () => {
-    const team = await handleFootballRequest(`teams/${TEAM_ID}`, {}, apiKey)
-    if (team.status !== 200) return { ...team, ttl: 0 }
-    const squad = ((team.body as { squad?: SquadMember[] }).squad ?? []).filter((p) => p.dateOfBirth)
+/**
+ * Progress survives between requests on a warm server, so a squad larger than one
+ * request's time budget is completed over several calls instead of hammering the API.
+ */
+interface Progress {
+  photos: Record<number, PlayerPhotoDto>
+  checked: Set<number>
+  bulkDone: boolean
+  startedAt: number
+}
 
-    const photos: Record<number, PlayerPhotoDto> = {}
-    const assign = (candidates: SportsDbPlayer[]) => {
-      for (const member of squad) {
-        if (photos[member.id]) continue
-        const found = candidates.filter((c) => isSamePlayer(member, c))
-        const photo = found.length === 1 ? toPhoto(found[0]) : null
-        if (photo) photos[member.id] = photo
-      }
-    }
+let progress: Progress | null = null
+let running: Promise<ProxyResult> | null = null
+let blockedUntil = 0
 
-    // One bulk call first (the free key returns a subset of the squad), then individual searches for the rest.
-    assign(await sportsDbGet(`lookup_all_players.php?id=${SPORTSDB_TEAM_ID}`))
+function respond(state: Progress, squad: SquadMember[]): ProxyResult {
+  const pending = squad.some((p) => !state.checked.has(p.id))
+  return {
+    status: 200,
+    body: { source: { name: 'TheSportsDB', url: 'https://www.thesportsdb.com/' }, photos: state.photos, pending },
+    ttl: pending ? PENDING_TTL : TTL,
+  }
+}
 
-    let complete = true
+async function run(apiKey: string | undefined): Promise<ProxyResult> {
+  const team = await handleFootballRequest(`teams/${TEAM_ID}`, {}, apiKey)
+  if (team.status !== 200) return { ...team, ttl: 0 }
+  const squad = ((team.body as { squad?: SquadMember[] }).squad ?? []).filter((p) => p.dateOfBirth)
+
+  if (!progress || Date.now() - progress.startedAt > TTL * 1000) {
+    progress = { photos: {}, checked: new Set(), bulkDone: false, startedAt: Date.now() }
+  }
+  const state = progress
+
+  const assign = (candidates: SportsDbPlayer[]) => {
     for (const member of squad) {
-      if (photos[member.id]) continue
-      await wait(SEARCH_GAP_MS)
-      try {
-        assign(await sportsDbGet(`searchplayers.php?p=${encodeURIComponent(asciiName(member.name).replace(/ /g, '_'))}`))
-      } catch {
-        complete = false
-        break
+      if (state.photos[member.id]) continue
+      const found = candidates.filter((c) => isSamePlayer(member, c))
+      const photo = found.length === 1 ? toPhoto(found[0]) : null
+      if (photo) {
+        state.photos[member.id] = photo
+        state.checked.add(member.id)
       }
     }
+  }
 
-    return {
-      status: 200,
-      body: { source: { name: 'TheSportsDB', url: 'https://www.thesportsdb.com/' }, photos },
-      ttl: complete ? TTL : PARTIAL_TTL,
+  if (Date.now() < blockedUntil) return respond(state, squad)
+
+  const deadline = Date.now() + TIME_BUDGET_MS
+  try {
+    // One bulk call first (the free key returns only part of the squad), then individual searches for the rest.
+    if (!state.bulkDone) {
+      assign(await sportsDbGet(`lookup_all_players.php?id=${SPORTSDB_TEAM_ID}`))
+      state.bulkDone = true
     }
-  })
+    for (const member of squad) {
+      if (state.checked.has(member.id)) continue
+      if (Date.now() + SEARCH_GAP_MS > deadline) break
+      await wait(SEARCH_GAP_MS)
+      assign(await sportsDbGet(`searchplayers.php?p=${encodeURIComponent(asciiName(member.name).replace(/ /g, '_'))}`))
+      state.checked.add(member.id)
+    }
+  } catch {
+    // Rate limited or unreachable: keep what we have and let the limit window reset.
+    blockedUntil = Date.now() + 60_000
+  }
+
+  return respond(state, squad)
+}
+
+export function handlePhotosRequest(apiKey: string | undefined): Promise<ProxyResult> {
+  running ??= run(apiKey).finally(() => (running = null))
+  return running
 }

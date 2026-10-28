@@ -14,7 +14,9 @@ export function sendResult(res: ServerResponse, result: ProxyResult) {
   res.setHeader('Content-Type', 'application/json; charset=utf-8')
   res.setHeader(
     'Cache-Control',
-    result.ttl > 0 ? `public, max-age=60, s-maxage=${result.ttl}, stale-while-revalidate=${result.ttl * 4}` : 'no-store',
+    result.ttl > 0
+      ? `public, max-age=${Math.min(60, result.ttl)}, s-maxage=${result.ttl}, stale-while-revalidate=${result.ttl * 4}`
+      : 'no-store',
   )
   res.end(JSON.stringify(result.body))
 }
