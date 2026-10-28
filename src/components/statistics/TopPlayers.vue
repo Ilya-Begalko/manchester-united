@@ -2,10 +2,12 @@
 import { computed } from 'vue'
 import ErrorState from '@/components/ui/ErrorState.vue'
 import LoadingSkeleton from '@/components/ui/LoadingSkeleton.vue'
+import PlayerAvatar from '@/components/ui/PlayerAvatar.vue'
+import { usePlayerPhotos } from '@/composables/usePlayerPhotos'
 import { useTopScorers } from '@/composables/useStatistics'
-import { initials } from '@/utils/football'
 
 const { data, top, hasAssists, season, loading, error, loaded, retry } = useTopScorers()
+const { photoFor } = usePlayerPhotos()
 
 const scope = computed(() =>
   [data.value?.competition.name ?? 'Premier League', season.value].filter(Boolean).join(' · '),
@@ -47,12 +49,7 @@ const scope = computed(() =>
         <span class="text-lg font-extrabold text-white/35 tabular-nums" :class="{ 'text-red': i === 0 }">
           {{ i + 1 }}
         </span>
-        <span
-          class="flex size-12 items-center justify-center rounded-full bg-gradient-to-br from-red-dark to-ink text-sm font-extrabold text-white ring-1 ring-white/10 transition-transform duration-500 group-hover:scale-110 sm:size-14"
-          role="img"
-          :aria-label="`No photo available for ${player.name}`"
-          >{{ initials(player.name) }}</span
-        >
+        <PlayerAvatar :name="player.name" :photo="photoFor(player.playerId)" />
         <div class="min-w-0">
           <p class="truncate font-bold text-white">{{ player.name }}</p>
           <p class="truncate text-xs text-white/50">

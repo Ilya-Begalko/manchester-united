@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useEventListener, useWindowScroll } from '@vueuse/core'
-import { CalendarClock, Menu, X } from 'lucide-vue-next'
+import { Menu, X } from 'lucide-vue-next'
 import TeamCrest from '@/components/ui/TeamCrest.vue'
 import { useActiveSection } from '@/composables/useActiveSection'
 import { useSquad } from '@/composables/useSquad'
+import { MAN_UNITED_CREST } from '@/utils/football'
 import { scrollToSection } from '@/utils/scroll'
 import { NAV_ITEMS } from './navigation'
 
@@ -63,13 +64,7 @@ function setLinkRef(id: string, el: unknown) {
           class="transition-transform duration-500 ease-out-expo group-hover:scale-110"
           :class="scrolled ? 'scale-90' : 'scale-100'"
         >
-          <TeamCrest v-if="club?.crest" :src="club.crest" :name="club.name" :size="40" eager />
-          <span
-            v-else
-            class="flex size-10 items-center justify-center rounded-full bg-red text-sm font-extrabold text-white"
-            aria-hidden="true"
-            >MU</span
-          >
+          <TeamCrest :src="club?.crest ?? MAN_UNITED_CREST" :name="club?.name ?? 'Manchester United'" :size="40" eager />
         </span>
         <span class="leading-none text-white">
           <span class="block text-sm font-extrabold tracking-wide uppercase">Manchester United</span>
@@ -98,15 +93,7 @@ function setLinkRef(id: string, el: unknown) {
         />
       </nav>
 
-      <div class="flex items-center gap-2">
-        <button
-          type="button"
-          class="group hidden items-center gap-2 rounded-full bg-red px-5 py-2.5 text-sm font-bold text-white transition hover:bg-red-dark sm:inline-flex"
-          @click="go('next-match')"
-        >
-          <CalendarClock class="size-4 transition-transform duration-300 group-hover:-rotate-12" aria-hidden="true" />
-          Next Match
-        </button>
+      <div class="flex items-center gap-2 lg:hidden">
         <button
           type="button"
           class="inline-flex size-11 items-center justify-center rounded-full text-white transition hover:bg-white/10 lg:hidden"
@@ -153,16 +140,6 @@ function setLinkRef(id: string, el: unknown) {
               {{ item.label }}
               <span class="text-xs font-semibold text-white/30">0{{ i + 1 }}</span>
             </a>
-          </li>
-          <li class="pt-5 sm:hidden">
-            <button
-              type="button"
-              class="inline-flex w-full items-center justify-center gap-2 rounded-full bg-red px-5 py-3.5 text-sm font-bold text-white"
-              @click="go('next-match')"
-            >
-              <CalendarClock class="size-4" aria-hidden="true" />
-              Next Match
-            </button>
           </li>
         </ul>
       </nav>

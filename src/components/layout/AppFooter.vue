@@ -1,9 +1,19 @@
 <script setup lang="ts">
-import { ArrowUpRight } from 'lucide-vue-next'
+import type { Component } from 'vue'
+import { ArrowUpRight, Github, Linkedin, Mail, Send } from 'lucide-vue-next'
 import { scrollToSection } from '@/utils/scroll'
 import { NAV_ITEMS } from './navigation'
 
 const year = new Date().getFullYear()
+
+const DEVELOPER_NAME = 'Ilya Begalko'
+
+const developerLinks: Array<{ label: string; href: string; external: boolean; icon: Component }> = [
+  { label: 'Telegram', href: 'https://t.me/ilbglk', external: true, icon: Send },
+  { label: 'GitHub', href: 'https://github.com/Ilya-Begalko', external: true, icon: Github },
+  { label: 'LinkedIn', href: 'https://www.linkedin.com/in/ilya-begalko/', external: true, icon: Linkedin },
+  { label: 'Email', href: 'mailto:ilya.begalko@gmail.com', external: false, icon: Mail },
+]
 
 const sources = [
   { label: 'football-data.org', href: 'https://www.football-data.org/', note: 'Fixtures, results, squad, table, scorers' },
@@ -28,6 +38,26 @@ const sources = [
           An independent, non-commercial fan project. Not affiliated with, endorsed by or connected to Manchester
           United Football Club. Club names and crests belong to their respective owners.
         </p>
+
+        <div v-if="developerLinks.length" class="mt-8">
+          <p class="mb-3 text-xs font-bold tracking-[0.2em] text-white/40 uppercase">Developer</p>
+          <p class="text-sm text-white/55">
+            Designed &amp; developed by <span class="font-bold text-white">{{ DEVELOPER_NAME }}</span>
+          </p>
+          <ul class="mt-4 flex flex-wrap gap-2">
+            <li v-for="link in developerLinks" :key="link.href">
+              <a
+                :href="link.href"
+                :target="link.external ? '_blank' : undefined"
+                :rel="link.external ? 'noopener noreferrer' : undefined"
+                class="inline-flex items-center gap-2 rounded-full border border-white/10 px-4 py-2 text-sm font-semibold text-white/75 transition-colors hover:border-red hover:text-white"
+              >
+                <component :is="link.icon" class="size-4" aria-hidden="true" />
+                {{ link.label }}
+              </a>
+            </li>
+          </ul>
+        </div>
       </div>
 
       <nav aria-label="Footer navigation">

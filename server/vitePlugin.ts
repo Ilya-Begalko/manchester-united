@@ -1,6 +1,7 @@
 import type { Plugin } from 'vite'
 import { handleFootballRequest } from './football.js'
 import { handleNewsRequest } from './news.js'
+import { handlePhotosRequest } from './photos.js'
 import { sendResult, toQuery } from './http.js'
 
 /** Serves /api/* during `vite dev` / `vite preview` with the same handlers used by the Vercel functions. */
@@ -12,6 +13,8 @@ export function apiProxy(apiKey: string | undefined): Plugin {
       sendResult(res, await handleFootballRequest(query.path, query, apiKey))
     } else if (parsed.pathname === '/api/news') {
       sendResult(res, await handleNewsRequest())
+    } else if (parsed.pathname === '/api/photos') {
+      sendResult(res, await handlePhotosRequest(apiKey))
     } else {
       next()
     }

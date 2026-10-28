@@ -5,6 +5,7 @@ import ErrorState from '@/components/ui/ErrorState.vue'
 import FilterTabs from '@/components/ui/FilterTabs.vue'
 import LoadingSkeleton from '@/components/ui/LoadingSkeleton.vue'
 import SectionHeading from '@/components/ui/SectionHeading.vue'
+import { usePlayerPhotos } from '@/composables/usePlayerPhotos'
 import { useSquad, useSquadFilters } from '@/composables/useSquad'
 import { useTopScorers } from '@/composables/useStatistics'
 import type { PositionGroup } from '@/types/player'
@@ -13,6 +14,7 @@ import PlayerCard from './PlayerCard.vue'
 
 const { players, club, loading, error, loaded, retry } = useSquad()
 const { byPlayerId } = useTopScorers()
+const { photoFor } = usePlayerPhotos()
 const { activeGroup, query, filtered, groups, counts } = useSquadFilters(players)
 
 const tabs = computed(() => [
@@ -105,14 +107,17 @@ const description = computed(() => {
               leave-active-class="hidden"
             >
               <li v-for="player in group.players" :key="player.id">
-                <PlayerCard :player="player" :scoring="byPlayerId.get(player.id) ?? null" />
+                <PlayerCard :player="player" :scoring="byPlayerId.get(player.id) ?? null" :photo="photoFor(player.id)" />
               </li>
             </TransitionGroup>
           </div>
         </TransitionGroup>
-        <p class="mt-12 text-xs text-white/40">
-          Player photos are not provided by the data source, so neutral placeholders are shown. Shirt numbers appear
-          only when published by the provider.
+        <p class="mt-12 max-w-3xl text-xs leading-relaxed text-white/40">
+          Player photos are provided by
+          <a href="https://www.thesportsdb.com/" target="_blank" rel="noopener noreferrer" class="underline hover:text-white"
+            >TheSportsDB</a
+          >. A photo is shown only when the player's name and date of birth match exactly; otherwise a neutral
+          placeholder is used. Shirt numbers appear only when published by the provider.
         </p>
       </template>
     </div>

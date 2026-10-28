@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { Flag, Goal } from 'lucide-vue-next'
+import type { PlayerPhoto } from '@/types/photo'
 import type { Player } from '@/types/player'
 import type { TopScorer } from '@/types/statistics'
 import { formatDate } from '@/utils/date'
@@ -10,7 +11,15 @@ const props = defineProps<{
   player: Player
   /** Premier League scoring record, when the player appears in the scorers list. */
   scoring?: TopScorer | null
+  photo?: PlayerPhoto | null
 }>()
+
+const photoFailed = ref(false)
+watch(
+  () => props.photo?.url,
+  () => (photoFailed.value = false),
+)
+const showPhoto = computed(() => !!props.photo && !photoFailed.value)
 
 const age = computed(() => {
   if (!props.player.dateOfBirth) return null
@@ -33,16 +42,39 @@ const nameParts = computed(() => {
   <article
     class="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] transition duration-500 ease-out-expo hover:-translate-y-1.5 hover:border-red/50 hover:bg-white/[0.07]"
   >
-    <div class="relative aspect-[4/3] overflow-hidden bg-gradient-to-br from-red-dark via-[#3a0a07] to-ink" role="img" :aria-label="`No photo available for ${player.name}`">
+    <div class="relative aspect-[4/3] overflow-hidden bg-gradient-to-br from-red-dark via-[#3a0a07] to-ink">
+      <template v-if="showPhoto && photo">
+        <img
+          :src="photo.url"
+          :alt="player.name"
+          width="500"
+          height="500"
+          loading="lazy"
+          decoding="async"
+          class="absolute inset-0 h-full w-full transition-transform duration-700 ease-out-expo group-hover:scale-110"
+          :class="photo.cutout ? 'origin-bottom object-contain object-bottom pt-4' : 'object-cover object-[center_20%]'"
+          @error="photoFailed = true"
+        />
+        <div class="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/30" aria-hidden="true" />
+        <a
+          :href="photo.sourceUrl"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="absolute right-2 bottom-2 rounded bg-black/40 px-1.5 py-0.5 text-[10px] text-white/60 opacity-0 transition group-hover:opacity-100 hover:text-white focus:opacity-100"
+          >Photo: TheSportsDB</a
+        >
+      </template>
       <div
+        v-else
         class="absolute inset-0 flex items-center justify-center transition-transform duration-700 ease-out-expo group-hover:scale-110"
-        aria-hidden="true"
+        role="img"
+        :aria-label="`No photo available for ${player.name}`"
       >
-        <svg viewBox="0 0 120 120" class="absolute bottom-0 h-[92%] text-black/35" fill="currentColor">
+        <svg viewBox="0 0 120 120" class="absolute bottom-0 h-[92%] text-black/35" fill="currentColor" aria-hidden="true">
           <circle cx="60" cy="38" r="22" />
           <path d="M14 120c0-28 20.6-46 46-46s46 18 46 46z" />
         </svg>
-        <span class="relative text-5xl font-extrabold tracking-tight text-white/90">{{ initials(player.name) }}</span>
+        <span class="relative text-5xl font-extrabold tracking-tight text-white/90" aria-hidden="true">{{ initials(player.name) }}</span>
       </div>
       <span
         v-if="player.shirtNumber !== null"

@@ -29,7 +29,7 @@ export async function cached(key: string, ttl: number, load: () => Promise<Proxy
     .catch((): ProxyResult => ({ status: 502, body: { message: 'Data provider is unreachable.' }, ttl: 0 }))
     .then((result) => {
       if (result.status === 200) {
-        store.set(key, { result, expiresAt: Date.now() + ttl * 1000 })
+        store.set(key, { result, expiresAt: Date.now() + Math.min(ttl, result.ttl || ttl) * 1000 })
         return result
       }
       return entry ? { ...entry.result, ttl: 30 } : result

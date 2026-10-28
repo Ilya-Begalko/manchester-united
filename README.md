@@ -1,50 +1,277 @@
 # Manchester United Fan Portal
 
-Independent single-page fan portal for Manchester United built with Vue 3, TypeScript, Vite, Tailwind CSS,
-VueUse Motion, Lucide icons and Axios. Not affiliated with Manchester United FC.
+Независимый фанатский портал о «Манчестер Юнайтед»: ближайший матч, последние результаты, календарь, состав, таблица Премьер-лиги, статистика и свежие новости — на реальных данных.
 
-## Data sources
+> **Это неофициальный проект.** Он не связан с Manchester United Football Club, не одобрен клубом и не является коммерческим. Названия клубов и эмблемы принадлежат их правообладателям.
 
-| Section | Source |
-|---|---|
-| Next match, results, fixtures | football-data.org `GET /v4/teams/66/matches` |
-| Squad, club crest, coach, venue | football-data.org `GET /v4/teams/66` |
-| Standings, club statistics | football-data.org `GET /v4/competitions/PL/standings` |
-| Top scorers (goals / assists) | football-data.org `GET /v4/competitions/PL/scorers` |
-| News | BBC Sport Manchester United RSS feed |
-| Hero photo | [Old Trafford panorama](https://commons.wikimedia.org/wiki/File:Oldtraffordstadpano.jpg) by LiamUK, CC BY-SA 3.0 |
+---
 
-football-data.org does not provide player photos, so neutral placeholders are shown.
+## Содержание
 
-## Staying within the free tier (10 requests / minute)
+- [Возможности](#возможности)
+- [Технологии](#технологии)
+- [Источники данных](#источники-данных)
+- [Архитектура](#архитектура)
+- [Структура проекта](#структура-проекта)
+- [Запуск локально](#запуск-локально)
+- [Скрипты](#скрипты)
+- [Деплой на Vercel](#деплой-на-vercel)
+- [Ограничения](#ограничения)
+- [Что намеренно не реализовано](#что-намеренно-не-реализовано)
+- [Разработчик](#разработчик)
 
-- The browser never talks to football-data.org directly. Requests go through `/api/football`
-  (a Vercel serverless function in `api/`, and the same handler as Vite middleware during development),
-  which keeps the token server-side.
-- Only four whitelisted resources can be requested. A full page load costs at most **4** upstream calls.
-- The proxy caches responses in memory (matches 2 min, standings 5 min, scorers 10 min, squad 6 h) and sends
-  `s-maxage` headers so Vercel's CDN serves repeated visits without touching the API.
-- The proxy refuses to exceed 9 upstream calls per minute and serves stale cache when the provider fails.
-- On the client, sections sharing data (e.g. Hero, Next Match, Fixtures) share one request via composables.
+---
 
-## Setup
+## Возможности
+
+Одностраничное приложение (SPA) с плавной прокруткой к секциям. Все секции имеют состояния загрузки (скелетоны), ошибки (с кнопкой «Повторить») и пустых данных.
+
+### Header
+
+- Фиксированная шапка: прозрачный градиент наверху страницы, при прокрутке — затемнённый фон с blur и уменьшенная высота.
+- Логотип — настоящая эмблема клуба: берётся из ответа API (`team.crest`), а до его загрузки — с CDN football-data.org (`https://crests.football-data.org/66.png`, константа `MAN_UNITED_CREST`). Если картинка не загрузилась, `TeamCrest` показывает нейтральную иконку щита.
+- Навигация по секциям (Home, Matches, Squad, Standings, Statistics, News) с анимированным индикатором активного пункта (отслеживается через `useActiveSection`).
+- Мобильное меню (бургер), закрывается по `Esc`.
+
+### Hero
+
+- Полноэкранный баннер с фото стадиона «Олд Траффорд» (адаптивный `srcset` 1280/1920 px) и параллакс-эффектом (отключается при `prefers-reduced-motion`).
+- Метка текущего сезона из данных матчей.
+- Краткая карточка ближайшего матча: соперник, дата, время, турнир, дом/выезд.
+- Кнопки «View Fixtures» и «Meet the Squad».
+
+### Next Match
+
+- Крупная карточка ближайшего матча: эмблемы и названия команд, турнир и тур/стадия, дата, относительное время («через 3 дня»), время начала в часовом поясе пользователя, место проведения.
+- Обратный отсчёт (дни/часы/минуты) — только если время начала подтверждено (статус `TIMED`); для `SCHEDULED` показывается «Kick-off time to be confirmed».
+- Плашка «Live now» со счётом, если матч идёт прямо сейчас.
+
+### Latest Results
+
+- Четыре последних сыгранных матча (горизонтальный скролл на мобильных, сетка на десктопе).
+- Полоска формы — исходы последних пяти матчей (W/D/L).
+- Ссылка «View All» к полному календарю.
+
+### Fixtures
+
+- Все матчи сезона, доступные в API, во всех турнирах тарифа.
+- Вкладки Upcoming / Completed / All Matches со счётчиками.
+- Фильтр по турниру (появляется, если турниров больше одного).
+- Постраничный вывод по 8 карточек с кнопкой «Show More».
+- Карточка матча: турнир, тур, дата и время, счёт, исход (победа/ничья/поражение), статусы Live/Postponed/Cancelled и т. п.
+
+### Squad
+
+- Текущий состав первой команды и имя главного тренера.
+- Группировка по позициям (вратари, защитники, полузащитники, нападающие) с вкладками-фильтрами и поиском по имени.
+- Карточка игрока: инициалы на плейсхолдере вместо фото, позиция, номер (если опубликован), гражданство, возраст, дата рождения, а также голы и ассисты в АПЛ (если игрок есть в списке бомбардиров).
+
+### Standings
+
+- Полная таблица Премьер-лиги: позиция, клуб, И, В, Н, П, ЗМ, ПМ, РМ, очки.
+- Строка «Манчестер Юнайтед» подсвечена; в заголовке — текущее место и очки клуба.
+- Горизонтальный скролл с «залипающей» колонкой клуба на узких экранах.
+
+### Statistics
+
+- Восемь показателей сезона в АПЛ: игры, победы, ничьи, поражения, забито, пропущено, разница мячей, очки. Цифры берутся из официальной таблицы, поэтому всегда совпадают с секцией Standings.
+- Топ-5 бомбардиров клуба в Премьер-лиге (голы, ассисты, пенальти).
+
+### News
+
+- Шесть последних новостей о клубе из RSS-ленты BBC Sport: главная новость крупно, остальные — карточками с изображением, датой и анонсом.
+- Ссылка на страницу клуба на BBC Sport.
+
+### Footer
+
+- Дисклеймер о неофициальном статусе проекта.
+- Навигация по секциям.
+- Источники данных и атрибуция фото.
+- Блок «Developer» с контактами разработчика.
+
+---
+
+## Технологии
+
+| Слой | Инструменты |
+| --- | --- |
+| Фреймворк | Vue 3 (Composition API, `<script setup>`), TypeScript |
+| Сборка | Vite 8, `vue-tsc` для проверки типов |
+| Стили | Tailwind CSS v4 (`@tailwindcss/vite`), шрифт Manrope |
+| Анимации | `@vueuse/motion`, CSS-переходы |
+| Утилиты | `@vueuse/core`, иконки `lucide-vue-next` |
+| HTTP | `axios` на клиенте, `fetch` на сервере |
+| Сервер | Vercel Serverless Functions (`@vercel/node`), `fast-xml-parser` для RSS |
+
+---
+
+## Источники данных
+
+- **[football-data.org](https://www.football-data.org/) (бесплатный тариф, API v4)** — все футбольные данные. Используются ровно 4 эндпоинта:
+  - `GET /teams/66/matches` — все матчи МЮ в сезоне (Next Match, Latest Results, Fixtures, Hero);
+  - `GET /teams/66` — информация о клубе, тренер и состав (Squad, эмблема в шапке);
+  - `GET /competitions/PL/standings` — таблица АПЛ (Standings, Statistics);
+  - `GET /competitions/PL/scorers?limit=100` — бомбардиры АПЛ, отфильтрованные по МЮ (Statistics, карточки игроков).
+- **[BBC Sport RSS](https://www.bbc.co.uk/sport/football/teams/manchester-united)** — лента новостей клуба (`feeds.bbci.co.uk/sport/football/teams/manchester-united/rss.xml`).
+- **[Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Oldtraffordstadpano.jpg)** — панорама «Олд Траффорд», автор LiamUK, лицензия CC BY-SA 3.0.
+- **Фото игроков** — API их не предоставляет, поэтому вместо фото показываются нейтральные плейсхолдеры с инициалами.
+
+---
+
+## Архитектура
+
+### Серверный прокси (`server/`)
+
+Ключ football-data.org никогда не попадает в браузер. Все запросы идут через собственный прокси `/api/*`, логика которого живёт в `server/` и переиспользуется в двух окружениях:
+
+- **Локально** — Vite-плагин `server/vitePlugin.ts` подключает обработчики как middleware в `vite dev` и `vite preview`.
+- **В продакшене** — Vercel Functions в `api/football.ts` и `api/news.ts` вызывают те же обработчики.
+
+Ключевые механизмы:
+
+- **Whitelist маршрутов** (`server/football.ts`). Пропускаются только 4 разрешённых пути и только перечисленные query-параметры; всё остальное — `400 Requested resource is not allowed.`
+- **In-memory кэш** (`server/cache.ts`) с TTL по типу данных:
+
+  | Ресурс | TTL |
+  | --- | --- |
+  | Матчи | 2 минуты |
+  | Таблица | 5 минут |
+  | Бомбардиры | 10 минут |
+  | Клуб и состав | 6 часов |
+  | Новости BBC | 15 минут |
+
+- **CDN-заголовки** (`server/http.ts`): `Cache-Control: public, max-age=60, s-maxage=<TTL>, stale-while-revalidate=<TTL×4>`; ошибки отдаются с `no-store`.
+- **Защита лимита**: не более 9 запросов к football-data.org за скользящее окно в 60 секунд (лимит тарифа — 10/мин). При превышении — `429` с понятным сообщением.
+- **Stale-кэш при сбое**: если upstream вернул ошибку или недоступен, отдаётся последняя успешная копия (с коротким TTL 30 с).
+- **Дедупликация на сервере**: параллельные одинаковые запросы ждут один и тот же upstream-вызов.
+- **Таймаут upstream** — 10 секунд (`AbortSignal.timeout`).
+
+### Клиент (`src/`)
+
+- **`services/apiClient.ts`** — экземпляр axios с `baseURL: '/api'`, таймаутом 15 с и переводом ошибок в понятные сообщения (`ApiError`: 429, 403, таймаут, недоступность). Кэш в памяти на время сессии: одинаковые запросы разделяют один промис (дедупликация), неудачные запросы из кэша удаляются.
+- **`services/*Service.ts`** — запросы к конкретным эндпоинтам и маппинг сырых ответов API в типы приложения (`src/types`).
+- **`composables/createResource.ts`** — фабрика общего (app-wide) состояния для одного источника данных: `data`, `error`, `loading`, `loaded`, `isEmpty`, `retry`. Первый потребитель запускает запрос, остальные секции используют то же состояние — поэтому, например, матчи загружаются один раз для Hero, Next Match, Latest Results и Fixtures.
+- **`composables/use*.ts`** — производные данные поверх ресурсов (ближайший матч, сыгранные матчи, фильтры состава, топ бомбардиров и т. д.).
+
+В итоге полная загрузка страницы стоит не более 4 запросов к football-data.org, а повторные визиты обслуживаются из кэша.
+
+---
+
+## Структура проекта
+
+```
+manchester-united/
+├── api/                        # Vercel Serverless Functions
+│   ├── football.ts             # /api/football → server/football.ts
+│   └── news.ts                 # /api/news → server/news.ts
+├── server/                     # Общая серверная логика прокси
+│   ├── cache.ts                # In-memory кэш, stale-on-error, дедупликация
+│   ├── football.ts             # Whitelist маршрутов, TTL, лимит запросов
+│   ├── http.ts                 # Cache-Control заголовки, разбор query
+│   ├── news.ts                 # Загрузка и парсинг RSS BBC Sport
+│   └── vitePlugin.ts           # Middleware /api/* для vite dev/preview
+├── public/
+├── src/
+│   ├── assets/images/          # Фото «Олд Траффорд» (1280 и 1920 px)
+│   ├── components/
+│   │   ├── home/HeroSection.vue
+│   │   ├── layout/             # AppHeader, AppFooter, navigation.ts
+│   │   ├── matches/            # NextMatch, LatestResults, FixturesSection, MatchCard
+│   │   ├── news/               # NewsSection, NewsCard
+│   │   ├── squad/              # SquadSection, PlayerCard
+│   │   ├── standings/StandingsTable.vue
+│   │   ├── statistics/         # StatisticsSection, StatCard, TopPlayers
+│   │   └── ui/                 # TeamCrest, FilterTabs, ErrorState, LoadingSkeleton, SectionHeading
+│   ├── composables/            # createResource, useMatches, useSquad, useStandings,
+│   │                           # useStatistics, useNews, useNow, useActiveSection, useReducedMotion
+│   ├── plugins/motion.ts       # Пресеты анимаций @vueuse/motion
+│   ├── services/               # apiClient и сервисы по эндпоинтам
+│   ├── types/                  # match, player, standings, statistics, news
+│   ├── utils/                  # date, football, scroll
+│   ├── App.vue
+│   ├── main.ts
+│   └── style.css               # Tailwind v4 и тема
+├── .env.example
+├── index.html
+├── package.json
+├── tsconfig.app.json / tsconfig.node.json / tsconfig.json
+└── vite.config.ts
+```
+
+---
+
+## Запуск локально
+
+Требуется Node.js 20+ и бесплатный ключ API football-data.org ([регистрация](https://www.football-data.org/client/register)).
 
 ```bash
 npm install
-cp .env.example .env.local   # then put your token into FOOTBALL_DATA_API_KEY
+cp .env.example .env.local
+```
+
+В `.env.local` укажите ключ:
+
+```env
+FOOTBALL_DATA_API_KEY=ваш_ключ
+```
+
+> **Важно:** не добавляйте префикс `VITE_`. Переменные с `VITE_` встраиваются в клиентский бандл, и ключ станет публичным. Переменная `FOOTBALL_DATA_API_KEY` читается только на сервере (Vite-плагином и Vercel-функциями). Файлы `.env.*` (кроме `.env.example`) исключены из git.
+
+```bash
 npm run dev
 ```
 
-Do **not** prefix the token with `VITE_` — that would embed it in the client bundle.
+Новости BBC работают без ключа.
 
-## Deploy to Vercel
+---
 
-1. Import the repository in Vercel (framework preset: Vite).
-2. Add `FOOTBALL_DATA_API_KEY` in Project Settings → Environment Variables.
-3. Deploy. Functions in `api/` are picked up automatically.
+## Скрипты
 
-## Scripts
+| Команда | Описание |
+| --- | --- |
+| `npm run dev` | Dev-сервер Vite с прокси `/api/*` |
+| `npm run build` | Проверка типов (`vue-tsc -b`) и продакшен-сборка в `dist/` |
+| `npm run preview` | Локальный просмотр сборки (прокси `/api/*` тоже работает) |
 
-- `npm run dev` — dev server with the API proxy
-- `npm run build` — type-check and production build
-- `npm run preview` — preview the production build (API proxy included)
+---
+
+## Деплой на Vercel
+
+1. Загрузите репозиторий на GitHub (или другой git-хостинг).
+2. В Vercel: **Add New → Project** и импортируйте репозиторий. Фреймворк определится как **Vite** (build: `npm run build`, output: `dist`).
+3. **Settings → Environment Variables**: добавьте `FOOTBALL_DATA_API_KEY` (для Production и Preview).
+4. Запустите деплой. Файлы из `api/` автоматически станут serverless-функциями `/api/football` и `/api/news`.
+5. После изменения переменных окружения сделайте повторный деплой.
+
+Ответы API кэшируются на CDN Vercel по заголовку `s-maxage`, поэтому большинство посетителей не создают запросов к football-data.org.
+
+---
+
+## Ограничения
+
+- **Бесплатный тариф football-data.org** покрывает 12 турниров (АПЛ, Лига чемпионов и др.). Кубок Англии, Кубок лиги и часть еврокубков могут отсутствовать в календаре.
+- **10 запросов в минуту** к API — отсюда серверный кэш и ограничитель в 9 запросов/мин. При холодном кэше и всплеске трафика возможен ответ «Request limit reached».
+- **Нет фото игроков** — API их не отдаёт, используются плейсхолдеры.
+- **Номера игроков** отображаются, только если их публикует провайдер.
+- **Бомбардиры — только Премьер-лига**; голы в других турнирах не учитываются.
+- In-memory кэш живёт в рамках одного инстанса сервера/функции и сбрасывается при холодном старте.
+
+---
+
+## Что намеренно не реализовано
+
+- Авторизация и личные кабинеты.
+- Хранилище данных (БД, localStorage) — всё берётся из API и кэшей.
+- Графики и визуализации статистики.
+- Автотесты.
+
+---
+
+## Разработчик
+
+Илья Бегалко (Ilya Begalko)
+
+- Telegram: [t.me/ilbglk](https://t.me/ilbglk)
+- GitHub: [github.com/Ilya-Begalko](https://github.com/Ilya-Begalko)
+- LinkedIn: [linkedin.com/in/ilya-begalko](https://www.linkedin.com/in/ilya-begalko/)
+- Email: [ilya.begalko@gmail.com](mailto:ilya.begalko@gmail.com)

@@ -4,6 +4,8 @@ import type { PositionGroup } from '@/types/player'
 /** football-data.org identifiers. */
 export const MAN_UNITED_ID = 66
 export const PREMIER_LEAGUE_CODE = 'PL'
+/** Same CDN the API returns in `team.crest`; used before the squad request resolves. */
+export const MAN_UNITED_CREST = `https://crests.football-data.org/${MAN_UNITED_ID}.png`
 
 const LIVE_STATUSES: MatchStatus[] = ['IN_PLAY', 'PAUSED', 'EXTRA_TIME', 'PENALTY_SHOOTOUT']
 const COMPLETED_STATUSES: MatchStatus[] = ['FINISHED', 'AWARDED']
