@@ -15,7 +15,7 @@
 - [Структура проекта](#структура-проекта)
 - [Запуск локально](#запуск-локально)
 - [Скрипты](#скрипты)
-- [Деплой на Vercel](#деплой-на-vercel)
+- [Публикация через GitHub Actions](#публикация-через-github-actions)
 - [Ограничения](#ограничения)
 - [Что намеренно не реализовано](#что-намеренно-не-реализовано)
 - [Разработчик](#разработчик)
@@ -101,7 +101,7 @@
 | Анимации | `@vueuse/motion`, CSS-переходы |
 | Утилиты | `@vueuse/core`, иконки `lucide-vue-next` |
 | HTTP | `axios` на клиенте, `fetch` на сервере |
-| Сервер | Vercel Serverless Functions (`@vercel/node`), `fast-xml-parser` для RSS |
+| Данные в проде | Снимок JSON, который GitHub Actions скачивает при сборке; `fast-xml-parser` для RSS |
 
 ---
 
@@ -122,10 +122,10 @@
 
 ### Серверный прокси (`server/`)
 
-Ключ football-data.org никогда не попадает в браузер. Все запросы идут через собственный прокси `/api/*`, логика которого живёт в `server/` и переиспользуется в двух окружениях:
+Ключ football-data.org никогда не попадает в браузер. Логика запросов живёт в `server/` и используется в двух окружениях:
 
-- **Локально** — Vite-плагин `server/vitePlugin.ts` подключает обработчики как middleware в `vite dev` и `vite preview`.
-- **В продакшене** — Vercel Functions в `api/football.ts` и `api/news.ts` вызывают те же обработчики.
+- **Локально** — Vite-плагин `server/vitePlugin.ts` подключает обработчики как middleware в `vite dev`. Браузер ходит на `/api/*`.
+- **В продакшене** — во время `vite build` те же обработчики скачивают данные и кладут JSON в `dist/data`. Сайт на GitHub Pages читает эти файлы. Ключ есть только в секрете GitHub Actions.
 
 Ключевые механизмы:
 
@@ -153,7 +153,7 @@
 - **`composables/createResource.ts`** — фабрика общего (app-wide) состояния для одного источника данных: `data`, `error`, `loading`, `loaded`, `isEmpty`, `retry`. Первый потребитель запускает запрос, остальные секции используют то же состояние — поэтому, например, матчи загружаются один раз для Hero, Next Match, Latest Results и Fixtures.
 - **`composables/use*.ts`** — производные данные поверх ресурсов (ближайший матч, сыгранные матчи, фильтры состава, топ бомбардиров и т. д.).
 
-В итоге полная загрузка страницы стоит не более 4 запросов к football-data.org, а повторные визиты обслуживаются из кэша.
+Локально полная загрузка страницы стоит не более 4 запросов к football-data.org. На GitHub Pages страница читает уже скачанный снимок и к API не обращается.
 
 ---
 
@@ -161,15 +161,14 @@
 
 ```
 manchester-united/
-├── api/                        # Vercel Serverless Functions
-│   ├── football.ts             # /api/football → server/football.ts
-│   └── news.ts                 # /api/news → server/news.ts
+├── .github/workflows/ci.yml    # Сборка и публикация на GitHub Pages
 ├── server/                     # Общая серверная логика прокси
 │   ├── cache.ts                # In-memory кэш, stale-on-error, дедупликация
 │   ├── football.ts             # Whitelist маршрутов, TTL, лимит запросов
 │   ├── http.ts                 # Cache-Control заголовки, разбор query
 │   ├── news.ts                 # Загрузка и парсинг RSS BBC Sport
-│   └── vitePlugin.ts           # Middleware /api/* для vite dev/preview
+│   ├── staticData.ts           # Скачивание JSON в dist/data во время сборки
+│   └── vitePlugin.ts           # Middleware /api/* для vite dev
 ├── public/
 ├── src/
 │   ├── assets/images/          # Фото «Олд Траффорд» (1280 и 1920 px)
@@ -215,7 +214,7 @@ cp .env.example .env.local
 FOOTBALL_DATA_API_KEY=ваш_ключ
 ```
 
-> **Важно:** не добавляйте префикс `VITE_`. Переменные с `VITE_` встраиваются в клиентский бандл, и ключ станет публичным. Переменная `FOOTBALL_DATA_API_KEY` читается только на сервере (Vite-плагином и Vercel-функциями). Файлы `.env.*` (кроме `.env.example`) исключены из git.
+> **Важно:** не добавляйте префикс `VITE_`. Переменные с `VITE_` встраиваются в клиентский бандл, и ключ станет публичным. Переменная `FOOTBALL_DATA_API_KEY` читается только при сборке и в локальном прокси. Файлы `.env.*` (кроме `.env.example`) исключены из git.
 
 ```bash
 npm run dev
@@ -230,8 +229,25 @@ npm run dev
 | Команда | Описание |
 | --- | --- |
 | `npm run dev` | Dev-сервер Vite с прокси `/api/*` |
-| `npm run build` | Проверка типов (`vue-tsc -b`) и продакшен-сборка в `dist/` |
-| `npm run preview` | Локальный просмотр сборки (прокси `/api/*` тоже работает) |
+| `npm run build` | Проверка типов (`vue-tsc -b`), скачивание данных и продакшен-сборка в `dist/` |
+| `npm run preview` | Локальный просмотр сборки. Данные берутся из `dist/data`, собранных предыдущей командой |
+
+---
+
+## Публикация через GitHub Actions
+
+Workflow `.github/workflows/ci.yml` на каждый push в `main`, по расписанию раз в час и вручную:
+
+1. Собирает сайт (`npm run build`).
+2. Во время сборки скачивает матчи, состав, таблицу, бомбардиров и новости. Ключ берётся из секрета репозитория `FOOTBALL_DATA_API_KEY` и в бандл не попадает.
+3. Публикует `dist` на GitHub Pages.
+
+Один раз в настройках репозитория:
+
+1. **Settings → Secrets and variables → Actions → New repository secret**: имя `FOOTBALL_DATA_API_KEY`, значение — токен football-data.org.
+2. **Settings → Pages → Build and deployment → Source**: GitHub Actions.
+
+Сайт откроется по адресу `https://<user>.github.io/manchester-united/`. Пока секрет не задан, сборка на Actions упадёт с сообщением, что ключ не настроен.
 
 ---
 

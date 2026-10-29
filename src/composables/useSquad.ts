@@ -36,16 +36,13 @@ export function useSquadFilters(players: { value: Player[] }) {
   )
 
   const groups = computed(() => {
-    const result = GROUP_ORDER.map((key) => ({
+    return GROUP_ORDER.map((key) => ({
       key,
       label: positionGroupLabel[key],
       players: filtered.value
         .filter((p) => p.positionGroup === key)
         .sort((a, b) => (a.shirtNumber ?? 999) - (b.shirtNumber ?? 999) || a.name.localeCompare(b.name)),
-    }))
-    const other = filtered.value.filter((p) => p.positionGroup === null)
-    if (other.length) result.push({ key: 'other' as PositionGroup, label: 'Other', players: other })
-    return result.filter((g) => g.players.length > 0)
+    })).filter((g) => g.players.length > 0)
   })
 
   const counts = computed(() => {

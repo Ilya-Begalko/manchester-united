@@ -3,7 +3,7 @@ import { ref, watch } from 'vue'
 import type { PlayerPhoto } from '@/types/photo'
 import { initials } from '@/utils/football'
 
-const props = defineProps<{ name: string; photo: PlayerPhoto | null }>()
+const props = defineProps<{ name: string; photo?: PlayerPhoto | null }>()
 
 const failed = ref(false)
 watch(
@@ -15,9 +15,8 @@ watch(
 <template>
   <img
     v-if="photo && !failed"
-    :src="photo.smallUrl"
+    :src="photo.url"
     :alt="name"
-    title="Photo: TheSportsDB"
     width="56"
     height="56"
     loading="lazy"

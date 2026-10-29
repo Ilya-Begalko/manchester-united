@@ -17,6 +17,7 @@ const developerLinks: Array<{ label: string; href: string; external: boolean; ic
 
 const sources = [
   { label: 'football-data.org', href: 'https://www.football-data.org/', note: 'Fixtures, results, squad, table, scorers' },
+  { label: 'manutd.com', href: 'https://www.manutd.com/en', note: 'Player photos from the official website' },
   { label: 'BBC Sport RSS', href: 'https://www.bbc.co.uk/sport/football/teams/manchester-united', note: 'Latest news headlines' },
   {
     label: 'Wikimedia Commons',

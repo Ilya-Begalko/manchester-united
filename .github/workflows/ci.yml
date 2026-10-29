@@ -5,18 +5,20 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  # Refresh match data on GitHub Pages. Four football-data.org calls, well under the free-plan limit.
+  schedule:
+    - cron: '17 * * * *'
   workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
-permissions:
-  contents: read
-
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
 
@@ -27,10 +29,26 @@ jobs:
 
       - run: npm ci
 
-      - run: npm run build
+      - name: Build site and download match data
+        run: npm run build
+        env:
+          FOOTBALL_DATA_API_KEY: ${{ secrets.FOOTBALL_DATA_API_KEY }}
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-pages-artifact@v3
+        if: github.ref == 'refs/heads/main'
         with:
-          name: dist
           path: dist
-          if-no-files-found: error
+
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

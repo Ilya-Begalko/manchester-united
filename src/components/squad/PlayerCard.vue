@@ -56,13 +56,6 @@ const nameParts = computed(() => {
           @error="photoFailed = true"
         />
         <div class="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/30" aria-hidden="true" />
-        <a
-          :href="photo.sourceUrl"
-          target="_blank"
-          rel="noopener noreferrer"
-          class="absolute right-2 bottom-2 rounded bg-black/40 px-1.5 py-0.5 text-[10px] text-white/60 opacity-0 transition group-hover:opacity-100 hover:text-white focus:opacity-100"
-          >Photo: TheSportsDB</a
-        >
       </template>
       <div
         v-else
