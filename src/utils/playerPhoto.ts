@@ -23,5 +23,5 @@ function playerSlug(name: string): string {
 export function playerPhoto(name: string): PlayerPhoto | null {
   const slug = playerSlug(name)
   if (!photoSlugs.has(slug)) return null
-  return { url: `/images/players/${slug}.jpg` }
+  return { url: `${import.meta.env.BASE_URL}images/players/${slug}.jpg` }
 }
